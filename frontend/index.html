@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SecureSense AI</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+   <div class="container">
+
+    <div class="header">
+        <h1>🛡️ SecureSense AI</h1>
+        <p>Intelligent API Security & Anomaly Detection Platform</p>
+    </div>
+
+    <div class="scan-box">
+        <input
+            type="text"
+            id="urlInput"
+            placeholder="Enter API URL"
+        >
+
+        <button onclick="scanAPI()">
+            🔍 Scan API
+        </button>
+    </div>
+
+    <div id="result">
+
+        <div class="section">
+            <h2>Ready to Scan</h2>
+            <p>
+                Enter an API endpoint above to analyze its
+                security posture and detect anomalies.
+            </p>
+        </div>
+
+    </div>
+
+    <div class="footer">
+        SecureSense AI • API Security & Anomaly Detection
+    </div>
+
+</div>
+
+    <script>
+        async function scanAPI() {
+
+            const url = document.getElementById("urlInput").value;
+            const result = document.getElementById("result");
+
+            if (!url) {
+                result.innerHTML = "<p>Please enter an API URL.</p>";
+                return;
+            }
+
+            result.innerHTML = "<p>Scanning...</p>";
+
+            try {
+
+                const response = await fetch("http://127.0.0.1:8000/scan", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        url: url
+                    })
+                });
+
+                const data = await response.json();
+
+           result.innerHTML = `
+               <div class="cards">
+
+               <div class="card">
+    <h3>🛡️ Security Score</h3>
+
+    <div class="value">
+        ${data.security_analysis.security_score}/100
+    </div>
+
+    <div class="score-bar">
+        <div
+            class="score-fill"
+            style="width: ${data.security_analysis.security_score}%"
+        ></div>
+    </div>
+</div>
+
+              <div class="card">
+    <h3>⚠️ Risk Level</h3>
+
+    <div
+        class="value risk-${data.security_analysis.risk_level.toLowerCase()}"
+    >
+        ${data.security_analysis.risk_level}
+    </div>
+</div>
+
+            <div class="card">
+            <h3>🔒 HTTPS</h3>
+            <div class="value">
+                ${data.https_analysis.status}
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>⚡ Response Time</h3>
+            <div class="value">
+                ${data.response_time}s
+            </div>
+        </div>
+
+    </div>
+
+    <div class="section">
+        <h2>📊 API Information</h2>
+        <p><strong>URL:</strong> ${data.url}</p>
+        <p><strong>Status Code:</strong> ${data.status_code}</p>
+        <p><strong>Content Type:</strong> ${data.content_type}</p>
+        <p><strong>Server:</strong> ${data.server || "Not disclosed"}</p>
+    </div>
+
+    <div class="section">
+        <h2>🚨 Anomaly Detection</h2>
+
+        ${
+            data.anomaly_analysis.anomaly_detected
+            ? data.anomaly_analysis.anomalies.map(anomaly => `
+                <div class="anomaly">
+                    <strong>${anomaly.type}</strong>
+                    <p>${anomaly.message}</p>
+                    <small>Severity: ${anomaly.severity}</small>
+                </div>
+            `).join("")
+            : `<p class="success">✓ No anomalies detected</p>`
+        }
+    </div>
+
+    <div class="section">
+        <h2>🛡️ Security Findings</h2>
+
+        ${data.security_analysis.findings.map(finding => `
+            <div class="finding">
+    <div class="finding-title">
+        🛡️ ${finding.header}
+    </div>
+
+    <div class="finding-status">
+        Status:
+        <strong>${finding.status}</strong>
+    </div>
+
+    <div class="finding-severity">
+        Severity:
+        <strong>${finding.severity}</strong>
+    </div>
+
+    <div class="recommendation">
+        💡 <strong>Recommendation:</strong>
+        ${finding.recommendation}
+    </div>
+</div>
+       `).join("")}
+    </div>
+
+    <div class="section fix-assistant-section">
+        <h2>🧰 Fix Assistant</h2>
+        <p>Get practical remediation steps for findings in this scan, including configuration examples where available.</p>
+        <button class="fix-button" onclick="runFixAssistant()">✨ Generate Fix Plan</button>
+        <div id="fixAssistantOutput" aria-live="polite"></div>
+    </div>
+    `;
+            window.lastSecureSenseScan = data;
+
+            } catch (error) {
+
+                result.innerHTML = `
+                    <p>❌ Could not connect to SecureSense AI backend.</p>
+                    <p>${error}</p>
+                `;
+            }
+        }
+
+        async function runFixAssistant() {
+            const output = document.getElementById("fixAssistantOutput");
+            const scan = window.lastSecureSenseScan;
+            if (!scan) {
+                output.innerHTML = '<p class="warning">Run an API scan first.</p>';
+                return;
+            }
+            output.innerHTML = '<p>Preparing remediation guidance…</p>';
+            try {
+                const response = await fetch("http://127.0.0.1:8000/fix-assistant", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ scan })
+                });
+                const plan = await response.json();
+                if (!response.ok) throw new Error(plan.detail || "Fix Assistant request failed.");
+                if (!plan.fixes || plan.fixes.length === 0) {
+                    output.innerHTML = `<p class="success">✓ No known remediation items were generated from this scan. Review the results manually as well.</p><p>${plan.note || ""}</p>`;
+                    return;
+                }
+                output.innerHTML = plan.fixes.map((fix) => `
+                    <article class="fix-card">
+                        <div class="fix-heading"><h3>${escapeHtml(fix.title)}</h3><span class="fix-severity">${escapeHtml(fix.severity || "Review")}</span></div>
+                        <p><strong>Finding:</strong> ${escapeHtml(fix.finding)}</p>
+                        <p>${escapeHtml(fix.why)}</p>
+                        <h4>Recommended steps</h4>
+                        <ol>${(fix.steps || []).map(step => `<li>${escapeHtml(step)}</li>`).join("")}</ol>
+                        ${Object.keys(fix.examples || {}).length ? `<h4>Configuration examples</h4>${Object.entries(fix.examples).map(([name, code]) => `<div class="code-example"><strong>${escapeHtml(name)}</strong><pre>${escapeHtml(code)}</pre><button class="copy-button" onclick="copyFixCode(this)">Copy example</button></div>`).join("")}` : ""}
+                    </article>
+                `).join("") + `<p class="fix-note">${escapeHtml(plan.note || "Review changes before deploying.")}</p>`;
+            } catch (error) {
+                output.innerHTML = `<p class="danger">Could not generate a fix plan: ${escapeHtml(error.message)}</p>`;
+            }
+        }
+
+        function escapeHtml(value) {
+            return String(value ?? "").replace(/[&<>"']/g, character => ({
+                "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;"
+            })[character]);
+        }
+
+        async function copyFixCode(button) {
+            const code = button.parentElement.querySelector("pre").textContent;
+            try {
+                await navigator.clipboard.writeText(code);
+                button.textContent = "Copied!";
+            } catch (_) {
+                button.textContent = "Copy unavailable";
+            }
+        }
+    </script>
+
+</body>
+</html>
